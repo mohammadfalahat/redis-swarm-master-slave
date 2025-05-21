@@ -1,0 +1,72 @@
+networks:
+  redis-net:
+    driver: overlay
+    internal: true       
+
+volumes:
+  redis-master-data:
+    driver: local
+  redis-replica-data:
+    driver: local
+
+services:
+
+  redis-master:
+    image: "bitnami/redis:latest"   
+    environment:
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - ALLOW_EMPTY_PASSWORD=no            
+      - REDIS_AOF_ENABLED=yes              
+    volumes:
+      - redis-master-data:/bitnami/redis/data  
+    networks:
+      - redis-net
+    deploy:
+      mode: replicated
+      replicas: 1          
+      placement:
+        max_replicas_per_node: 1   
+        constraints:
+          - node.labels.redis.role == master
+
+  redis-replicas:
+    image: "bitnami/redis:latest"
+    environment:
+      - REDIS_REPLICATION_MODE=replica
+      - REDIS_MASTER_HOST=redis-master         
+      - REDIS_MASTER_PORT_NUMBER=6379
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - ALLOW_EMPTY_PASSWORD=no
+      - REDIS_AOF_ENABLED=yes
+    volumes:
+      - redis-replica-data:/bitnami/redis/data  
+    networks:
+      - redis-net
+    deploy:
+      mode: replicated
+      replicas: 4             
+      placement:
+        max_replicas_per_node: 1
+        constraints:
+          - node.labels.redis.role == replica
+    depends_on:
+      - redis-master           
+
+  redis-sentinel:
+    image: "bitnami/redis-sentinel:latest"
+    environment:
+      - REDIS_MASTER_HOST=redis-master
+      - REDIS_MASTER_PORT_NUMBER=6379
+      - REDIS_MASTER_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_SENTINEL_QUORUM=5         
+      - REDIS_SENTINEL_MASTER_NAME=mymaster   
+      - ALLOW_EMPTY_PASSWORD=no
+    networks:
+      - redis-net
+    deploy:
+      mode: global        
+    depends_on:
+      - redis-master
+      - redis-replicas
