@@ -65,6 +65,8 @@ services:
       - ALLOW_EMPTY_PASSWORD=no
     networks:
       - redis-net
+    ports:
+      - "26379:26379"
     deploy:
       mode: global        
     depends_on:
